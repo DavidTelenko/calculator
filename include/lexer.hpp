@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 namespace calc {
 
 template <class It>
@@ -13,9 +14,41 @@ struct Token {
         Caret,
         OpenParen,
         CloseParen,
+        Identifier,
         EndOfFile,
         Error,
     };
+
+    constexpr auto get_name() {
+        switch (type) {
+            case Type::Number:
+                return "Number";
+            case Type::Plus:
+                return "Plus";
+            case Type::Minus:
+                return "Minus";
+            case Type::Star:
+                return "Star";
+            case Type::Slash:
+                return "Slash";
+            case Type::Caret:
+                return "Caret";
+            case Type::OpenParen:
+                return "OpenParen";
+            case Type::CloseParen:
+                return "CloseParen";
+            case Type::Identifier:
+                return "Identifier";
+            case Type::EndOfFile:
+                return "EndOfFile";
+            case Type::Error:
+                return "Error";
+        }
+    }
+
+    constexpr explicit Token(Type type, It lexeme_start, It lexeme_end)
+        : type(type), lexeme_start(lexeme_start), lexeme_end(lexeme_end) {}
+
     Type type;
     It lexeme_start, lexeme_end;
 };
@@ -43,7 +76,7 @@ constexpr auto is_dot(It&& iterator) -> bool {
 
 template <class It>
 constexpr auto lex_number(It begin, It end) -> Token<It> {
-    It it = begin;
+    auto it = begin;
 
     for (; it != end and is_numeric(it); ++it) {
     }
@@ -53,40 +86,46 @@ constexpr auto lex_number(It begin, It end) -> Token<It> {
         }
     }
 
-    return Token<It>{
-        .type = Token<It>::Type::Number,
-        .lexeme_start = begin,
-        .lexeme_end = it,
-    };
+    return Token<It>{Token<It>::Type::Number, begin, it};
 }
 
 template <class It>
-constexpr auto next_token(It& begin, const It end) -> Token<It> {
+constexpr auto lex_alpha(It begin, It end) -> Token<It> {
+    auto it = begin;
+
+    for (; it != end and is_alphabetic(it); ++it) {
+    }
+
+    return Token<It>{Token<It>::Type::Identifier, begin, it};
+}
+
+template <class It>
+constexpr auto next_token(It begin, It end) -> Token<It> {
+    if (begin == end) {
+        return Token<It>{Token<It>::Type::EndOfFile, begin, end};
+    }
+
     for (; is_whitespace(begin); ++begin) {
         if (begin == end) {
-            return Token<It>{
-                .type = Token<It>::Type::EndOfFile,
-                .lexeme_start = begin,
-                .lexeme_end = end,
-            };
+            return Token<It>{Token<It>::Type::EndOfFile, begin, end};
         }
     }
 
-    switch (*(++begin)) {
+    switch (*begin) {
         case '+':
-            return Token{Token<It>::Type::Plus, begin, begin++};
+            return Token{Token<It>::Type::Plus, begin, ++begin};
         case '-':
-            return Token{Token<It>::Type::Minus, begin, begin++};
+            return Token{Token<It>::Type::Minus, begin, ++begin};
         case '*':
-            return Token{Token<It>::Type::Star, begin, begin++};
+            return Token{Token<It>::Type::Star, begin, ++begin};
         case '/':
-            return Token{Token<It>::Type::Slash, begin, begin++};
+            return Token{Token<It>::Type::Slash, begin, ++begin};
         case '^':
-            return Token{Token<It>::Type::Caret, begin, begin++};
+            return Token{Token<It>::Type::Caret, begin, ++begin};
         case '(':
-            return Token{Token<It>::Type::OpenParen, begin, begin++};
-        case '(':
-            return Token{Token<It>::Type::CloseParen, begin, begin++};
+            return Token{Token<It>::Type::OpenParen, begin, ++begin};
+        case ')':
+            return Token{Token<It>::Type::CloseParen, begin, ++begin};
         default:
             break;
     }
@@ -95,7 +134,33 @@ constexpr auto next_token(It& begin, const It end) -> Token<It> {
         return lex_number(begin, end);
     }
 
+    if (is_alphabetic(begin)) {
+        return lex_alpha(begin, end);
+    }
+
     return Token(Token<It>::Type::Error, begin, end);
+}
+
+template <class It>
+constexpr auto lex_all(It begin, It end) {
+    std::vector<Token<It>> buffer;
+
+    while (true) {
+        auto token = calc::next_token(begin, end);
+        buffer.push_back(token);
+
+        if (token.type == calc::Token<const char*>::Type::EndOfFile) {
+            break;
+        }
+
+        if (token.type == calc::Token<const char*>::Type::Error) {
+            break;
+        }
+
+        begin = token.lexeme_end;
+    }
+
+    return buffer;
 }
 
 }  // namespace calc

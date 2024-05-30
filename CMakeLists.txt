@@ -3,8 +3,9 @@ cmake_minimum_required(VERSION 3.21)
 
 project(calculator)
 
-file(GLOB_RECURSE sources src/*.cpp)
+include(CTest)
 
+file(GLOB_RECURSE sources src/*.cpp)
 add_executable(${CMAKE_PROJECT_NAME} ${sources})
 
 target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE

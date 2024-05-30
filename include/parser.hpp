@@ -36,16 +36,18 @@ struct Node {
         Pow,
     } type;
 
+    struct Unary {
+        Node* operand;
+    };
+
+    struct Binary {
+        Node *left, *right;
+    };
+
     union {
         F value;
-
-        struct {
-            Node* operand;
-        } unary;
-
-        struct {
-            Node *left, *right;
-        } binary;
+        Unary unary;
+        Binary binary;
     };
 };
 
@@ -107,15 +109,15 @@ constexpr auto evaluate(Node<F>* node) -> F {
         case Type::Negative:
             return -evaluate(node->unary.operand);
         case Type::Add:
-            return evaluate(node->binary.left) + evaluate(node->binary.righ);
+            return evaluate(node->binary.left) + evaluate(node->binary.right);
         case Type::Sub:
-            return evaluate(node->binary.left) - evaluate(node->binary.righ);
+            return evaluate(node->binary.left) - evaluate(node->binary.right);
         case Type::Div:
-            return evaluate(node->binary.left) / evaluate(node->binary.righ);
+            return evaluate(node->binary.left) / evaluate(node->binary.right);
         case Type::Mul:
-            return evaluate(node->binary.left) * evaluate(node->binary.righ);
-        case Type::Mul:
-            return std::pow((node->binary.left), evaluate(node->binary.righ));
+            return evaluate(node->binary.left) * evaluate(node->binary.right);
+        case Type::Pow:
+            return std::pow((node->binary.left), evaluate(node->binary.right));
     }
 }
 
