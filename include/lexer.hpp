@@ -1,6 +1,5 @@
 #pragma once
 
-#include <vector>
 namespace calc {
 
 template <class It>
@@ -141,26 +140,21 @@ constexpr auto next_token(It begin, It end) -> Token<It> {
     return Token(Token<It>::Type::Error, begin, end);
 }
 
-template <class It>
-constexpr auto lex_all(It begin, It end) {
-    std::vector<Token<It>> buffer;
+template <class It, class Out>
+constexpr auto lex_all(It begin, It end, Out out) {
+    for (;; ++out) {
+        const auto token = calc::next_token(begin, end);
 
-    while (true) {
-        auto token = calc::next_token(begin, end);
-        buffer.push_back(token);
-
-        if (token.type == calc::Token<const char*>::Type::EndOfFile) {
-            break;
-        }
-
-        if (token.type == calc::Token<const char*>::Type::Error) {
+        if (token.type == calc::Token<const char*>::Type::EndOfFile or
+            token.type == calc::Token<const char*>::Type::Error) {
             break;
         }
 
         begin = token.lexeme_end;
+        *out = token;
     }
 
-    return buffer;
+    return out;
 }
 
 }  // namespace calc
