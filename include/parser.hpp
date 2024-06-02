@@ -2,123 +2,142 @@
 
 #include <charconv>
 #include <cmath>
+#include <deque>
 #include <lexer.hpp>
+#include <vector>
+
+#include "prelude.hpp"
 
 namespace calc {
 
-template <class F>
-struct Node {
-    ~Node() {
-        switch (type) {
-            case Type::Number:
-            case Type::Error:
-                return;
-            case Type::Positive:
-            case Type::Negative: {
-                delete unary.operand;
+namespace detail {  // namespace detail
+
+template <class It>
+constexpr auto precedence(const Token<It>& token) {
+    switch (token.type) {
+        case Token<It>::OpenParen:
+        case Token<It>::CloseParen:
+            return 0;
+        case Token<It>::Add:
+        case Token<It>::Sub:
+            return 1;
+        case Token<It>::Mul:
+        case Token<It>::Div:
+        case Token<It>::Mod:
+            return 2;
+        case Token<It>::Pow:
+            return 3;
+        case Token<It>::Number:
+        case Token<It>::Comma:
+        case Token<It>::Identifier:
+        case Token<It>::EndOfFile:
+        case Token<It>::Error:
+            return 4;
+    }
+}
+
+template <class It>
+constexpr auto is_function(const Token<It>& token, It begin, It end) -> bool {
+    if (token.type != Token<It>::Identifier) {
+        return false;
+    }
+
+    const auto next = next_token(begin, end).type;
+
+    return next == Token<It>::OpenParen or next == Token<It>::Identifier or
+           next == Token<It>::Number;
+}
+
+template <class It>
+constexpr auto is_binary_operator(const Token<It>& token) -> bool {
+    return token.type >= Token<It>::Add and token.type <= Token<It>::Pow;
+}
+
+// template <class It>
+
+}  // namespace detail
+
+template <class It>
+constexpr auto parse(It begin, It end) -> std::vector<Token<It>> {
+    using namespace detail;
+
+    std::vector<Token<It>> output;
+    std::vector<Token<It>> operators;
+
+    for (;;) {
+        const auto token = next_token(begin, end);
+
+        if (token.type == Token<It>::EndOfFile or
+            token.type == Token<It>::Error) {
+            break;
+        }
+
+        else if (is_function(token, begin, end) or
+                 token.type == Token<It>::OpenParen) {
+            operators.push_back(token);
+        }
+
+        else if (token.type == Token<It>::Number or
+                 token.type == Token<It>::Identifier) {
+            output.push_back(token);
+        }
+
+        else if (is_binary_operator(token)) {
+            while (not operators.empty() and
+                   precedence(operators.back()) >= precedence(token)) {
+                output.push_back(operators.back());
+                operators.pop_back();
             }
-            default: {
-                delete binary.left;
-                delete binary.right;
+            operators.push_back(token);
+        }
+
+        else if (token.type == Token<It>::Comma) {
+            constexpr auto err =
+                "Mismatched parenthesis or function argument separators";
+
+            ASSERT(not operators.empty(), err);
+
+            while (operators.back().type != Token<It>::OpenParen) {
+                output.push_back(operators.back());
+                operators.pop_back();
+
+                ASSERT(not operators.empty(), err);
+            }
+            continue;
+        }
+
+        else if (token.type == Token<It>::CloseParen) {
+            constexpr auto err = "Mismatched parenthesis";
+
+            ASSERT(not operators.empty(), err);
+
+            while (operators.back().type != Token<It>::OpenParen) {
+                output.push_back(operators.back());
+                operators.pop_back();
+
+                ASSERT(not operators.empty(), err);
+            }
+
+            operators.pop_back();
+
+            if (not operators.empty() and
+                is_function(operators.back(), begin, end)) {
+                output.push_back(operators.back());
+                operators.pop_back();
             }
         }
     }
 
-    enum class Type {
-        Error,
-        Number,
-        Positive,
-        Negative,
-        Add,
-        Sub,
-        Mul,
-        Div,
-        Pow,
-    } type;
+    while (operators.size()) {
+        constexpr auto err = "Mismatched parenthesis";
 
-    struct Unary {
-        Node* operand;
-    };
+        ASSERT(operators.back().type != Token<It>::OpenParen, err);
 
-    struct Binary {
-        Node *left, *right;
-    };
-
-    union {
-        F value;
-        Unary unary;
-        Binary binary;
-    };
-};
-
-template <class F, class It>
-constexpr auto parse_number(const Token<It>& token) -> Node<F>* {
-    using Node = Node<F>;
-
-    F value{};
-    std::from_chars(token.lexeme_start, token.lexeme_end, value);
-
-    return new Node{
-        .type = Node::Type::Number,
-        .value = value,
-    };
-}
-
-template <class F, class It>
-constexpr auto parse_prefix(Node<F>* left, It begin, It end) -> Node<F>* {
-    const auto token = next_token(begin, end);
-
-    if (token.type == Token<It>::Type::Error) {
-        return new Node<F>{
-            .type = Node<F>::Type::Error,
-        };
+        output.push_back(operators.back());
+        operators.pop_back();
     }
 
-    switch (token.type) {
-        case Token<It>::Type::Number:
-            return parse_number<F>(token);
-    }
-}
-
-// template <class F, class It>
-// constexpr auto parse_infix(Node<F>* left, It begin, It end) {
-//     const auto token = next_token(begin, end);
-//
-//     switch (token.type) {
-//         case Token<It>::Type::Plus:
-//             return new Node<F>{.type=Node<F>::Type::Add,
-//             .left=left,.right=parse()}
-//     }
-//
-// }
-
-template <class F, class It>
-constexpr auto parse(Node<F>* root, It begin, It end) -> Node<F>* {
-    Node<F>* left = parse_infix(root);
-}
-
-template <class F>
-constexpr auto evaluate(Node<F>* node) -> F {
-    using Type = Node<F>::Type;
-
-    switch (node->type) {
-        case Type::Number:
-            return node->value;
-        case Type::Positive:
-            return evaluate(node->unary.operand);
-        case Type::Negative:
-            return -evaluate(node->unary.operand);
-        case Type::Add:
-            return evaluate(node->binary.left) + evaluate(node->binary.right);
-        case Type::Sub:
-            return evaluate(node->binary.left) - evaluate(node->binary.right);
-        case Type::Div:
-            return evaluate(node->binary.left) / evaluate(node->binary.right);
-        case Type::Mul:
-            return evaluate(node->binary.left) * evaluate(node->binary.right);
-        case Type::Pow:
-            return std::pow((node->binary.left), evaluate(node->binary.right));
-    }
+    return output;
 }
 
 }  // namespace calc

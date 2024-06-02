@@ -1,29 +1,39 @@
 #include <iomanip>
 #include <iostream>
-#include <iterator>
 #include <lexer.hpp>
 #include <ostream>
 #include <string_view>
-#include <vector>
 
-int main(int argc, char* argv[]) {
-    const std::string_view expr =
-        "2 + 22.2 - 1.1 * (hello + f(10)) / (9 + 10 / 2)";
+#include "evaluator.hpp"
 
-    std::cout << std::quoted(expr) << std::endl;
+auto getStyled(double num) {
+    struct ThousandsSep : std::numpunct<char> {
+        char do_thousands_sep() const { return '\''; }
+        std::string do_grouping() const { return "\3"; }
+    };
 
-    std::vector<calc::Token<typename decltype(expr)::iterator>> tokens;
+    std::stringstream ss;
+    ss.imbue(std::locale(ss.getloc(), new ThousandsSep));
 
-    calc::lex_all(expr.begin(), expr.end(), std::back_inserter(tokens));
+    ss << (num < 1e40 ? std::fixed : std::scientific) << std::setprecision(10)
+       << num;
 
-    for (auto token : tokens) {
-        std::cout << token.get_name() << " "
-                  << std::quoted(
-                         std::string_view(token.lexeme_start, token.lexeme_end))
-                  << "\n";
+    auto numStr = ss.str();
+
+    auto dot = numStr.find('.');
+    if (dot != std::string::npos) {
+        while (numStr.back() == '0') numStr.pop_back();
+        if (numStr.back() == '.') numStr.pop_back();
     }
 
-    std::cout << std::flush;
+    return numStr;
+}
+
+int main(int argc, char* argv[]) {
+    const std::string_view expr = argv[1];
+
+    std::cout << getStyled(calc::evaluate<double>(expr.begin(), expr.end()))
+              << std::flush;
 
     return 0;
 }

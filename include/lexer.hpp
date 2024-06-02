@@ -1,16 +1,19 @@
 #pragma once
 
+#include <iostream>
 namespace calc {
 
 template <class It>
 struct Token {
     enum class Type {
         Number,
-        Plus,
-        Minus,
-        Star,
-        Slash,
-        Caret,
+        Add,
+        Sub,
+        Mul,
+        Div,
+        Mod,
+        Pow,
+        Comma,
         OpenParen,
         CloseParen,
         Identifier,
@@ -18,32 +21,16 @@ struct Token {
         Error,
     };
 
-    constexpr auto get_name() {
-        switch (type) {
-            case Type::Number:
-                return "Number";
-            case Type::Plus:
-                return "Plus";
-            case Type::Minus:
-                return "Minus";
-            case Type::Star:
-                return "Star";
-            case Type::Slash:
-                return "Slash";
-            case Type::Caret:
-                return "Caret";
-            case Type::OpenParen:
-                return "OpenParen";
-            case Type::CloseParen:
-                return "CloseParen";
-            case Type::Identifier:
-                return "Identifier";
-            case Type::EndOfFile:
-                return "EndOfFile";
-            case Type::Error:
-                return "Error";
+    template <class Out>
+    friend Out& operator<<(Out& out, const Token<It>& token) {
+        auto it = token.lexeme_start;
+        for (; it != token.lexeme_end; ++it) {
+            out << *it;
         }
+        return out;
     }
+
+    using enum Type;
 
     constexpr explicit Token(Type type, It lexeme_start, It lexeme_end)
         : type(type), lexeme_start(lexeme_start), lexeme_end(lexeme_end) {}
@@ -51,6 +38,8 @@ struct Token {
     Type type;
     It lexeme_start, lexeme_end;
 };
+
+namespace detail {
 
 template <class It>
 constexpr auto is_whitespace(It&& iterator) -> bool {
@@ -60,7 +49,7 @@ constexpr auto is_whitespace(It&& iterator) -> bool {
 template <class It>
 constexpr auto is_alphabetic(It&& iterator) -> bool {
     return ('a' <= *iterator and *iterator <= 'z') or
-           ('A' <= *iterator and *iterator <= 'Z');
+           ('A' <= *iterator and *iterator <= 'Z') or *iterator == '_';
 }
 
 template <class It>
@@ -69,62 +58,105 @@ constexpr auto is_numeric(It&& iterator) -> bool {
 }
 
 template <class It>
-constexpr auto is_dot(It&& iterator) -> bool {
-    return *iterator == '.';
+constexpr auto is_hex(It&& iterator) -> bool {
+    return ('0' <= *iterator and *iterator <= '9') or
+           ('a' <= *iterator and *iterator <= 'f') or
+           ('A' <= *iterator and *iterator <= 'F');
 }
 
 template <class It>
-constexpr auto lex_number(It begin, It end) -> Token<It> {
-    auto it = begin;
+constexpr auto is_oct(It&& iterator) -> bool {
+    return ('0' <= *iterator and *iterator <= '7');
+}
 
-    for (; it != end and is_numeric(it); ++it) {
+template <class It>
+constexpr auto is_bin(It&& iterator) -> bool {
+    return ('0' <= *iterator and *iterator <= '1');
+}
+
+template <class It, class Predicate>
+constexpr auto consume_while(It& begin, It end, Predicate predicate) {
+    for (; begin != end and predicate(begin); ++begin) {
     }
+}
 
-    if (is_dot(it)) {
-        for (++it; it != end and is_numeric(it); ++it) {
+template <class It>
+constexpr auto lex_number(It& begin, It end) -> Token<It> {
+    const auto prev = begin;
+
+    if (*begin == '0') {
+        ++begin;
+
+        // hex, oct, bin cases
+        if (*begin == 'x') {
+            ++begin;
+            consume_while(begin, end, is_hex<const It&>);
+            return Token{Token<It>::Number, prev, begin};
+        } else if (*begin == 'o') {
+            ++begin;
+            consume_while(begin, end, is_oct<const It&>);
+            return Token{Token<It>::Number, prev, begin};
+        } else if (*begin == 'b') {
+            ++begin;
+            consume_while(begin, end, is_bin<const It&>);
+            return Token{Token<It>::Number, prev, begin};
         }
     }
 
-    return Token<It>{Token<It>::Type::Number, begin, it};
-}
+    consume_while(begin, end, is_numeric<const It&>);
 
-template <class It>
-constexpr auto lex_alpha(It begin, It end) -> Token<It> {
-    auto it = begin;
-
-    for (; it != end and is_alphabetic(it); ++it) {
+    // float case
+    if (*begin == '.') {
+        consume_while(++begin, end, is_numeric<const It&>);
     }
 
-    return Token<It>{Token<It>::Type::Identifier, begin, it};
+    return Token{Token<It>::Number, prev, begin};
 }
 
 template <class It>
-constexpr auto next_token(It begin, It end) -> Token<It> {
+constexpr auto lex_alpha(It& begin, It end) -> Token<It> {
+    auto prev = begin;
+
+    consume_while(begin, end, is_alphabetic<const It&>);
+
+    return Token{Token<It>::Identifier, prev, begin};
+}
+
+}  // namespace detail
+
+template <class It>
+constexpr auto next_token(It& begin, It end) -> Token<It> {
+    using namespace detail;
+
     if (begin == end) {
-        return Token<It>{Token<It>::Type::EndOfFile, begin, end};
+        return Token{Token<It>::EndOfFile, begin, end};
     }
 
     for (; is_whitespace(begin); ++begin) {
         if (begin == end) {
-            return Token<It>{Token<It>::Type::EndOfFile, begin, end};
+            return Token{Token<It>::EndOfFile, begin, end};
         }
     }
 
     switch (*begin) {
         case '+':
-            return Token{Token<It>::Type::Plus, begin, ++begin};
+            return Token{Token<It>::Add, begin, ++begin};
         case '-':
-            return Token{Token<It>::Type::Minus, begin, ++begin};
+            return Token{Token<It>::Sub, begin, ++begin};
         case '*':
-            return Token{Token<It>::Type::Star, begin, ++begin};
+            return Token{Token<It>::Mul, begin, ++begin};
         case '/':
-            return Token{Token<It>::Type::Slash, begin, ++begin};
+            return Token{Token<It>::Div, begin, ++begin};
+        case '%':
+            return Token{Token<It>::Mod, begin, ++begin};
         case '^':
-            return Token{Token<It>::Type::Caret, begin, ++begin};
+            return Token{Token<It>::Pow, begin, ++begin};
+        case ',':
+            return Token{Token<It>::Comma, begin, ++begin};
         case '(':
-            return Token{Token<It>::Type::OpenParen, begin, ++begin};
+            return Token{Token<It>::OpenParen, begin, ++begin};
         case ')':
-            return Token{Token<It>::Type::CloseParen, begin, ++begin};
+            return Token{Token<It>::CloseParen, begin, ++begin};
         default:
             break;
     }
@@ -137,21 +169,24 @@ constexpr auto next_token(It begin, It end) -> Token<It> {
         return lex_alpha(begin, end);
     }
 
-    return Token(Token<It>::Type::Error, begin, end);
+    return Token(Token<It>::Error, begin, end);
 }
 
-template <class It, class Out>
-constexpr auto lex_all(It begin, It end, Out out) {
-    for (;; ++out) {
-        const auto token = calc::next_token(begin, end);
+template <class It>
+constexpr auto peek_token(It begin, It end) {
+    return next_token(begin, end);
+}
 
-        if (token.type == calc::Token<const char*>::Type::EndOfFile or
-            token.type == calc::Token<const char*>::Type::Error) {
+template <class It, class Consumer>
+constexpr auto lex_all(It begin, It end, Consumer out) {
+    using namespace detail;
+
+    for (; begin != end;) {
+        const auto token = next_token(begin, end);
+
+        if (not out(token) or token.type == Token<It>::EndOfFile) {
             break;
         }
-
-        begin = token.lexeme_end;
-        *out = token;
     }
 
     return out;
