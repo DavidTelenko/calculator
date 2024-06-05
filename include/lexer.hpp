@@ -1,7 +1,5 @@
 #pragma once
 
-#include <ranges>
-
 namespace calc {
 
 template <class It>
@@ -81,7 +79,7 @@ constexpr auto is_bin(It&& iterator) -> bool {
 }
 
 template <class It, class Predicate>
-constexpr auto& consume_while(It& begin, It end, Predicate predicate) {
+constexpr auto consume_while(It& begin, It end, Predicate predicate) -> It& {
     for (; begin != end and predicate(begin); ++begin) {
     }
     return begin;
@@ -115,9 +113,18 @@ constexpr auto lex_number(It& begin, It end) -> Token<It> {
         }
     }
 
+    consume_while(begin, end, is_numeric<const It&>);
+
     // float case
-    if (*consume_while(begin, end, is_numeric<const It&>) == '.') {
+    if (*begin == '.') {
         consume_while(++begin, end, is_numeric<const It&>);
+    }
+
+    if (*begin == 'e') {
+        consume_while(++begin, end, is_numeric<const It&>);
+        if (*begin == '-') {
+            consume_while(++begin, end, is_numeric<const It&>);
+        }
     }
 
     return Token{Token<It>::Number, prev, begin};

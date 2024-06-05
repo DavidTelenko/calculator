@@ -62,7 +62,8 @@ constexpr auto is_binary_operator(const Token<It>& token) -> bool {
 
 template <class It, class Queue>
 constexpr auto parse_token(const Token<It>& token, It begin, It end,
-                           Queue& operators, Queue& output) {
+                           Queue& operators, Queue& output)
+    -> std::optional<bool> {
     using val = std::iter_value_t<It>;
     using str_view = typename std::basic_string_view<val>;
 
@@ -70,7 +71,7 @@ constexpr auto parse_token(const Token<It>& token, It begin, It end,
            "Tokenizer error at: " << str_view(begin, end));
 
     if (token.type == Token<It>::EndOfFile) {
-        return false;
+        return std::nullopt;
     }
 
     else if (is_function(token, begin, end) or
@@ -130,7 +131,8 @@ constexpr auto parse_token(const Token<It>& token, It begin, It end,
 }
 
 template <class It, class Queue>
-constexpr auto pull_parens(Queue& operators, Queue& output) {
+constexpr auto pull_parens(Queue& operators, Queue& output)
+    -> std::optional<bool> {
     constexpr auto err = "Mismatched parenthesis";
 
     while (operators.size()) {
@@ -139,12 +141,14 @@ constexpr auto pull_parens(Queue& operators, Queue& output) {
         output.push_back(operators.back());
         operators.pop_back();
     }
+    return true;
 }
 
 }  // namespace detail
 
 template <class It>
-constexpr auto parse(It begin, It end) -> std::vector<Token<It>> {
+constexpr auto parse(It begin, It end)
+    -> std::optional<std::vector<Token<It>>> {
     using namespace detail;
 
     std::vector<Token<It>> output;

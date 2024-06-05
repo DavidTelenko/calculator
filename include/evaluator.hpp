@@ -1,9 +1,6 @@
 #pragma once
 
 #include <cmath>
-#include <concepts>
-#include <cstdint>
-#include <functional>
 #include <iterator>
 #include <numeric>
 #include <string_view>
@@ -18,7 +15,7 @@ namespace detail {
 
 template <class F, class It, class Stack, class Vars>
 constexpr auto perform(const Token<It>& identifier, Stack& stack, Vars vars)
-    -> F {
+    -> std::optional<F> {
     using val = std::iter_value_t<It>;
     using str_view = typename std::basic_string_view<val>;
 
@@ -32,7 +29,7 @@ constexpr auto perform(const Token<It>& identifier, Stack& stack, Vars vars)
     }
 
     ASSERT(not stack.empty(),
-           "Function `" << identifier_name << "` call is incorrect");
+           "Identifier `" << identifier_name << "` not found");
 
     const F a = stack.back();
     stack.pop_back();
@@ -106,7 +103,7 @@ constexpr auto perform(const Token<It>& identifier, Stack& stack, Vars vars)
     }
 
     ASSERT(not stack.empty(),
-           "Function `" << identifier_name << "` call is incorrect");
+           "Identifier `" << identifier_name << "` not found");
 
     const F b = stack.back();
     stack.pop_back();
@@ -148,12 +145,14 @@ constexpr auto perform(const Token<It>& identifier, Stack& stack, Vars vars)
         return std::gcd(static_cast<int>(b), static_cast<int>(a));
     } else if (identifier_name == "lcm") {
         return std::lcm(static_cast<int>(b), static_cast<int>(a));
-    } else if (identifier_name == "and") {
-        return static_cast<size_t>(b) and static_cast<size_t>(a);
     } else if (identifier_name == "or") {
-        return static_cast<size_t>(b) or static_cast<size_t>(a);
+        return static_cast<F>(static_cast<size_t>(b) or static_cast<size_t>(a));
+    } else if (identifier_name == "and") {
+        return static_cast<F>(static_cast<size_t>(b) and
+                              static_cast<size_t>(a));
     } else if (identifier_name == "xor") {
-        return static_cast<size_t>(b) xor static_cast<size_t>(a);
+        return static_cast<F>(static_cast<size_t>(b) xor
+                              static_cast<size_t>(a));
     } else if (identifier_name == "add") {
         return b + a;
     } else if (identifier_name == "sub") {
@@ -168,9 +167,9 @@ constexpr auto perform(const Token<It>& identifier, Stack& stack, Vars vars)
         return std::pow(b, a);
     }
 
-    ASSERT(false, "Function `" << identifier_name << "` is not found");
+    ASSERT(false, "Identifier `" << identifier_name << "` not found");
 
-    return std::nan("0");
+    return std::nullopt;
 }
 
 template <class F, class It>
@@ -182,13 +181,13 @@ auto parse_num(It it) -> F {
         switch (*next) {
             case 'x':
                 std::from_chars(it->lexeme_start + 2, it->lexeme_end, val, 16);
-                return val;
+                return static_cast<F>(val);
             case 'o':
                 std::from_chars(it->lexeme_start + 2, it->lexeme_end, val, 8);
-                return val;
+                return static_cast<F>(val);
             case 'b':
                 std::from_chars(it->lexeme_start + 2, it->lexeme_end, val, 2);
-                return val;
+                return static_cast<F>(val);
         }
     }
     F val;
@@ -205,23 +204,34 @@ concept iterator_mapper =
     };
 
 template <class F, class It>
-constexpr auto evaluate(It begin, It end, iterator_mapper<It> auto variables) {
+constexpr auto evaluate(It begin, It end, iterator_mapper<It> auto variables)
+    -> std::optional<F> {
     using namespace detail;
 
     const auto queue = parse(begin, end);
 
-    calc::print([](auto&& v) { std::cout << v; }, queue)('\n');
+    if (not queue) {
+        return std::nullopt;
+    }
+
+    // calc::print([](auto&& v) { std::cout << v; }, *queue)('\n');
 
     std::vector<F> stack;
 
-    for (auto it = queue.begin(); it != queue.end();) {
+    for (auto it = queue->begin(); it != queue->end();) {
         if (it->type == Token<It>::Number) {
             stack.push_back(parse_num<F>(it));
             ++it;
             continue;
         }
 
-        stack.push_back(perform<F, It>(*it, stack, variables));
+        const auto result = perform<F, It>(*it, stack, variables);
+
+        if (not result) {
+            return result;
+        }
+
+        stack.push_back(*result);
         ++it;
     }
 
