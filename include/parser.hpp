@@ -18,21 +18,28 @@ constexpr auto precedence(const Token<It>& token) {
         case Token<It>::OpenParen:
         case Token<It>::CloseParen:
             return 0;
+        case Token<It>::LessThan:
+        case Token<It>::LessEquals:
+        case Token<It>::GreaterThan:
+        case Token<It>::GreaterEquals:
+            return 1;
+        case Token<It>::Equals:
+            return 2;
         case Token<It>::Add:
         case Token<It>::Sub:
-            return 1;
+            return 3;
         case Token<It>::Mul:
         case Token<It>::Div:
         case Token<It>::Mod:
-            return 2;
+            return 4;
         case Token<It>::Pow:
-            return 3;
+            return 5;
         case Token<It>::Number:
         case Token<It>::Comma:
         case Token<It>::Identifier:
         case Token<It>::EndOfFile:
         case Token<It>::Error:
-            return 4;
+            return 6;
     }
 }
 
@@ -50,10 +57,89 @@ constexpr auto is_function(const Token<It>& token, It begin, It end) -> bool {
 
 template <class It>
 constexpr auto is_binary_operator(const Token<It>& token) -> bool {
-    return token.type >= Token<It>::Add and token.type <= Token<It>::Pow;
+    return token.type >= Token<It>::Add and token.type <= Token<It>::Equals;
 }
 
-// template <class It>
+template <class It, class Queue>
+constexpr auto parse_token(const Token<It>& token, It begin, It end,
+                           Queue& operators, Queue& output) {
+    using val = std::iter_value_t<It>;
+    using str_view = typename std::basic_string_view<val>;
+
+    ASSERT(token.type != Token<It>::Error,
+           "Tokenizer error at: " << str_view(begin, end));
+
+    if (token.type == Token<It>::EndOfFile) {
+        return false;
+    }
+
+    else if (is_function(token, begin, end) or
+             token.type == Token<It>::OpenParen) {
+        operators.push_back(token);
+    }
+
+    else if (token.type == Token<It>::Number or
+             token.type == Token<It>::Identifier) {
+        output.push_back(token);
+    }
+
+    else if (is_binary_operator(token)) {
+        while (not operators.empty() and
+               precedence(operators.back()) >= precedence(token)) {
+            output.push_back(operators.back());
+            operators.pop_back();
+        }
+        operators.push_back(token);
+    }
+
+    else if (token.type == Token<It>::Comma) {
+        constexpr auto err =
+            "Mismatched parenthesis or function argument separators";
+
+        ASSERT(not operators.empty(), err);
+
+        while (operators.back().type != Token<It>::OpenParen) {
+            output.push_back(operators.back());
+            operators.pop_back();
+
+            ASSERT(not operators.empty(), err);
+        }
+    }
+
+    else if (token.type == Token<It>::CloseParen) {
+        constexpr auto err = "Mismatched parenthesis";
+
+        ASSERT(not operators.empty(), err);
+
+        while (operators.back().type != Token<It>::OpenParen) {
+            output.push_back(operators.back());
+            operators.pop_back();
+
+            ASSERT(not operators.empty(), err);
+        }
+
+        operators.pop_back();
+
+        if (not operators.empty() and
+            is_function(operators.back(), begin, end)) {
+            output.push_back(operators.back());
+            operators.pop_back();
+        }
+    }
+    return true;
+}
+
+template <class It, class Queue>
+constexpr auto pull_parens(Queue& operators, Queue& output) {
+    constexpr auto err = "Mismatched parenthesis";
+
+    while (operators.size()) {
+        ASSERT(operators.back().type != Token<It>::OpenParen, err);
+
+        output.push_back(operators.back());
+        operators.pop_back();
+    }
+}
 
 }  // namespace detail
 
@@ -66,76 +152,12 @@ constexpr auto parse(It begin, It end) -> std::vector<Token<It>> {
 
     for (;;) {
         const auto token = next_token(begin, end);
-
-        if (token.type == Token<It>::EndOfFile or
-            token.type == Token<It>::Error) {
+        if (not parse_token(token, begin, end, operators, output)) {
             break;
         }
-
-        else if (is_function(token, begin, end) or
-                 token.type == Token<It>::OpenParen) {
-            operators.push_back(token);
-        }
-
-        else if (token.type == Token<It>::Number or
-                 token.type == Token<It>::Identifier) {
-            output.push_back(token);
-        }
-
-        else if (is_binary_operator(token)) {
-            while (not operators.empty() and
-                   precedence(operators.back()) >= precedence(token)) {
-                output.push_back(operators.back());
-                operators.pop_back();
-            }
-            operators.push_back(token);
-        }
-
-        else if (token.type == Token<It>::Comma) {
-            constexpr auto err =
-                "Mismatched parenthesis or function argument separators";
-
-            ASSERT(not operators.empty(), err);
-
-            while (operators.back().type != Token<It>::OpenParen) {
-                output.push_back(operators.back());
-                operators.pop_back();
-
-                ASSERT(not operators.empty(), err);
-            }
-            continue;
-        }
-
-        else if (token.type == Token<It>::CloseParen) {
-            constexpr auto err = "Mismatched parenthesis";
-
-            ASSERT(not operators.empty(), err);
-
-            while (operators.back().type != Token<It>::OpenParen) {
-                output.push_back(operators.back());
-                operators.pop_back();
-
-                ASSERT(not operators.empty(), err);
-            }
-
-            operators.pop_back();
-
-            if (not operators.empty() and
-                is_function(operators.back(), begin, end)) {
-                output.push_back(operators.back());
-                operators.pop_back();
-            }
-        }
     }
 
-    while (operators.size()) {
-        constexpr auto err = "Mismatched parenthesis";
-
-        ASSERT(operators.back().type != Token<It>::OpenParen, err);
-
-        output.push_back(operators.back());
-        operators.pop_back();
-    }
+    pull_parens<It>(operators, output);
 
     return output;
 }

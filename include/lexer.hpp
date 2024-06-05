@@ -1,6 +1,7 @@
 #pragma once
 
-#include <iostream>
+#include <ranges>
+
 namespace calc {
 
 template <class It>
@@ -13,6 +14,11 @@ struct Token {
         Div,
         Mod,
         Pow,
+        LessThan,
+        LessEquals,
+        GreaterThan,
+        GreaterEquals,
+        Equals,
         Comma,
         OpenParen,
         CloseParen,
@@ -20,6 +26,11 @@ struct Token {
         EndOfFile,
         Error,
     };
+
+    using enum Type;
+
+    constexpr explicit Token(Type type, It lexeme_start, It lexeme_end)
+        : type(type), lexeme_start(lexeme_start), lexeme_end(lexeme_end) {}
 
     template <class Out>
     friend Out& operator<<(Out& out, const Token<It>& token) {
@@ -29,11 +40,6 @@ struct Token {
         }
         return out;
     }
-
-    using enum Type;
-
-    constexpr explicit Token(Type type, It lexeme_start, It lexeme_end)
-        : type(type), lexeme_start(lexeme_start), lexeme_end(lexeme_end) {}
 
     Type type;
     It lexeme_start, lexeme_end;
@@ -75,9 +81,15 @@ constexpr auto is_bin(It&& iterator) -> bool {
 }
 
 template <class It, class Predicate>
-constexpr auto consume_while(It& begin, It end, Predicate predicate) {
+constexpr auto& consume_while(It& begin, It end, Predicate predicate) {
     for (; begin != end and predicate(begin); ++begin) {
     }
+    return begin;
+}
+
+template <class It>
+constexpr auto consume_whitespaces(It& begin, It end) {
+    return consume_while(begin, end, is_whitespace<const It&>) == end;
 }
 
 template <class It>
@@ -103,10 +115,8 @@ constexpr auto lex_number(It& begin, It end) -> Token<It> {
         }
     }
 
-    consume_while(begin, end, is_numeric<const It&>);
-
     // float case
-    if (*begin == '.') {
+    if (*consume_while(begin, end, is_numeric<const It&>) == '.') {
         consume_while(++begin, end, is_numeric<const It&>);
     }
 
@@ -115,11 +125,59 @@ constexpr auto lex_number(It& begin, It end) -> Token<It> {
 
 template <class It>
 constexpr auto lex_alpha(It& begin, It end) -> Token<It> {
+    return Token{Token<It>::Identifier, begin,
+                 consume_while(begin, end, is_alphabetic<const It&>)};
+}
+
+template <class It>
+constexpr auto lex_operator(It& begin, It end) -> Token<It> {
     auto prev = begin;
 
-    consume_while(begin, end, is_alphabetic<const It&>);
-
-    return Token{Token<It>::Identifier, prev, begin};
+    switch (*begin) {
+        case '+':
+            return Token{Token<It>::Add, prev, ++begin};
+        case '-':
+            return Token{Token<It>::Sub, prev, ++begin};
+        case '*':
+            ++begin;
+            if (begin != end and *begin == '*') {
+                return Token{Token<It>::Pow, prev, ++begin};
+            }
+            return Token{Token<It>::Mul, prev, begin};
+        case '/':
+            return Token{Token<It>::Div, prev, ++begin};
+        case '%':
+            return Token{Token<It>::Mod, prev, ++begin};
+        case '^':
+            return Token{Token<It>::Pow, prev, ++begin};
+        case ',':
+            return Token{Token<It>::Comma, prev, ++begin};
+        case '(':
+            return Token{Token<It>::OpenParen, prev, ++begin};
+        case ')':
+            return Token{Token<It>::CloseParen, prev, ++begin};
+        case '<':
+            ++begin;
+            if (begin != end and *begin == '=') {
+                return Token{Token<It>::LessEquals, prev, ++begin};
+            }
+            return Token{Token<It>::LessThan, prev, begin};
+        case '>':
+            ++begin;
+            if (begin != end and *begin == '=') {
+                return Token{Token<It>::GreaterEquals, prev, ++begin};
+            }
+            return Token{Token<It>::GreaterThan, prev, begin};
+        case '=':
+            ++begin;
+            if (begin != end and *begin == '=') {
+                return Token{Token<It>::Equals, prev, ++begin};
+            }
+            // return Token{Token<It>::Assign, prev, begin};
+            return Token{Token<It>::Error, prev, begin};
+        default:
+            return Token{Token<It>::Error, prev, begin};
+    }
 }
 
 }  // namespace detail
@@ -128,37 +186,13 @@ template <class It>
 constexpr auto next_token(It& begin, It end) -> Token<It> {
     using namespace detail;
 
-    if (begin == end) {
+    if (begin == end or consume_whitespaces(begin, end)) {
         return Token{Token<It>::EndOfFile, begin, end};
     }
 
-    for (; is_whitespace(begin); ++begin) {
-        if (begin == end) {
-            return Token{Token<It>::EndOfFile, begin, end};
-        }
-    }
-
-    switch (*begin) {
-        case '+':
-            return Token{Token<It>::Add, begin, ++begin};
-        case '-':
-            return Token{Token<It>::Sub, begin, ++begin};
-        case '*':
-            return Token{Token<It>::Mul, begin, ++begin};
-        case '/':
-            return Token{Token<It>::Div, begin, ++begin};
-        case '%':
-            return Token{Token<It>::Mod, begin, ++begin};
-        case '^':
-            return Token{Token<It>::Pow, begin, ++begin};
-        case ',':
-            return Token{Token<It>::Comma, begin, ++begin};
-        case '(':
-            return Token{Token<It>::OpenParen, begin, ++begin};
-        case ')':
-            return Token{Token<It>::CloseParen, begin, ++begin};
-        default:
-            break;
+    const auto token = lex_operator(begin, end);
+    if (token.lexeme_start != token.lexeme_end) {
+        return token;
     }
 
     if (is_numeric(begin)) {
