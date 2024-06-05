@@ -48,3 +48,4 @@ _x is passed as a command line argument_
 
 - Fix variable - function confusion in equations like this `tau min pi`
 - Add command line arguments for variables
+- Add variadic support for most binary functions (`+(1, 2, 3)`, `min(1, 2, 3)`) [hint](https://blog.kallisti.net.nz/2008/02/extension-to-the-shunting-yard-algorithm-to-allow-variable-numbers-of-arguments-to-functions/)
