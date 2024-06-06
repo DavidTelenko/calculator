@@ -17,7 +17,7 @@ auto get_styled(F num) {
     ss.imbue(std::locale(ss.getloc(), new ThousandsSep));
 
     ss << (num < 1e40 or num < 1e-40 ? std::fixed : std::scientific)
-       << std::setprecision(10) << num;
+       << std::setprecision(15) << num;
 
     auto numStr = ss.str();
 
@@ -34,6 +34,7 @@ auto repl() -> int {
     using F = double;
 
     std::string buffer;
+    calc::Variables<F, decltype(buffer)::iterator> variables;
 
     for (;;) {
         std::cout << "> ";
@@ -47,9 +48,8 @@ auto repl() -> int {
             return 0;
         }
 
-        const auto result =
-            calc::evaluate<F>(buffer.data(), buffer.data() + buffer.size(),
-                              calc::built_in_variables<F, char>);
+        const auto result = calc::evaluate<F>(
+            buffer.data(), buffer.data() + buffer.size(), variables);
 
         if (not result) {
             continue;
@@ -64,14 +64,15 @@ auto repl() -> int {
 int main(int argc, char* argv[]) {
     using F = double;
 
+    calc::Variables<F, char*> variables;
+
     if (argc == 1) {
         return repl();
     }
 
     const std::basic_string_view expr = argv[1];
 
-    const auto result = calc::evaluate<F>(expr.begin(), expr.end(),
-                                          calc::built_in_variables<F, char>);
+    const auto result = calc::evaluate<F>(expr.begin(), expr.end(), variables);
 
     if (not result) {
         return 1;

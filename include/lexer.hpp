@@ -16,6 +16,7 @@ struct Token {
         LessEquals,
         GreaterThan,
         GreaterEquals,
+        Assign,
         Equals,
         Comma,
         OpenParen,
@@ -180,8 +181,8 @@ constexpr auto lex_operator(It& begin, It end) -> Token<It> {
             if (begin != end and *begin == '=') {
                 return Token{Token<It>::Equals, prev, ++begin};
             }
-            // return Token{Token<It>::Assign, prev, begin};
-            return Token{Token<It>::Error, prev, begin};
+            return Token{Token<It>::Assign, prev, begin};
+            // return Token{Token<It>::Error, prev, begin};
         default:
             return Token{Token<It>::Error, prev, begin};
     }

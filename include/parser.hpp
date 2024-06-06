@@ -1,8 +1,5 @@
 #pragma once
 
-#include <charconv>
-#include <cmath>
-#include <deque>
 #include <lexer.hpp>
 #include <vector>
 
@@ -18,28 +15,30 @@ constexpr auto precedence(const Token<It>& token) {
         case Token<It>::OpenParen:
         case Token<It>::CloseParen:
             return 0;
+        case Token<It>::Assign:
+            return 1;
         case Token<It>::LessThan:
         case Token<It>::LessEquals:
         case Token<It>::GreaterThan:
         case Token<It>::GreaterEquals:
-            return 1;
-        case Token<It>::Equals:
             return 2;
+        case Token<It>::Equals:
+            return 3;
         case Token<It>::Add:
         case Token<It>::Sub:
-            return 3;
+            return 4;
         case Token<It>::Mul:
         case Token<It>::Div:
         case Token<It>::Mod:
-            return 4;
-        case Token<It>::Pow:
             return 5;
+        case Token<It>::Pow:
+            return 6;
         case Token<It>::Number:
         case Token<It>::Comma:
         case Token<It>::Identifier:
         case Token<It>::EndOfFile:
         case Token<It>::Error:
-            return 6;
+            return 7;
     }
 }
 
@@ -68,10 +67,10 @@ constexpr auto parse_token(const Token<It>& token, It begin, It end,
     using str_view = typename std::basic_string_view<val>;
 
     ASSERT(token.type != Token<It>::Error,
-           "Tokenizer error at: " << str_view(begin, end));
+           "Tokenizer error at: `" << str_view(begin, end) << "`");
 
     if (token.type == Token<It>::EndOfFile) {
-        return std::nullopt;
+        return false;
     }
 
     else if (is_function(token, begin, end) or
@@ -133,10 +132,9 @@ constexpr auto parse_token(const Token<It>& token, It begin, It end,
 template <class It, class Queue>
 constexpr auto pull_parens(Queue& operators, Queue& output)
     -> std::optional<bool> {
-    constexpr auto err = "Mismatched parenthesis";
-
     while (operators.size()) {
-        ASSERT(operators.back().type != Token<It>::OpenParen, err);
+        ASSERT(operators.back().type != Token<It>::OpenParen,
+               "Mismatched parenthesis");
 
         output.push_back(operators.back());
         operators.pop_back();
@@ -155,8 +153,13 @@ constexpr auto parse(It begin, It end)
     std::vector<Token<It>> operators;
 
     for (;;) {
-        const auto token = next_token(begin, end);
-        if (not parse_token(token, begin, end, operators, output)) {
+        const auto parsed =
+            parse_token(next_token(begin, end), begin, end, operators, output);
+
+        if (not parsed) {
+            return std::nullopt;
+        }
+        if (not *parsed) {
             break;
         }
     }
