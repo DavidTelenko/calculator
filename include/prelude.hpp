@@ -1,25 +1,27 @@
 #pragma once
 
 #include <iostream>
+#include <memory>
 #include <ranges>
 
 #ifndef NDEBUG
-#define ASSERT(condition, message)                                             \
-    do {                                                                       \
-        if (!(condition)) {                                                    \
-            std::cerr << "Assertion `" #condition "` failed in " << __FILE__   \
-                      << " line " << __LINE__ << ": " << message << std::endl; \
-            return std::nullopt;                                               \
-        }                                                                      \
+#define ASSERT(condition, message)                                           \
+    do {                                                                     \
+        if (!(condition)) {                                                  \
+            std::cerr << "[31mAssertion `" #condition "` failed in "        \
+                      << __FILE__ << " line " << __LINE__ << ": " << message \
+                      << std::endl                                           \
+                      << "[0m";                                             \
+            return std::nullopt;                                             \
+        }                                                                    \
     } while (false)
 #else
-#define ASSERT(condition, message)                                      \
-    do {                                                                \
-        if (!(condition)) {                                             \
-            std::cerr << "[31mError occured: " << message << std::endl \
-                      << "[0m";                                        \
-            return std::nullopt;                                        \
-        }                                                               \
+#define ASSERT(condition, message)                                         \
+    do {                                                                   \
+        if (!(condition)) {                                                \
+            std::cerr << "[31mError: " << message << std::endl << "[0m"; \
+            return std::nullopt;                                           \
+        }                                                                  \
     } while (false)
 #endif
 
@@ -29,9 +31,11 @@ template <class T, class Out>
 constexpr auto print(Out out, const T& val) -> Out {
     if constexpr (std::ranges::range<T>) {
         auto it = std::ranges::begin(val);
+        if (it == std::ranges::end(val)) {
+            return out;
+        }
         out(*it);
         for (++it; it != std::ranges::end(val); ++it) {
-            out(", ");
             out(*it);
         }
     } else {
@@ -39,6 +43,23 @@ constexpr auto print(Out out, const T& val) -> Out {
     }
     return out;
 }
+
+template <class Out, class T>
+struct print_proxy {
+    constexpr explicit print_proxy(Out out, const T& val)
+        : val(std::addressof(val)), out(std::forward<Out>(out)) {}
+
+    template <class C>
+    friend std::basic_ostream<C>& operator<<(std::basic_ostream<C>& os,
+                                             const print_proxy& p) {
+        print(p.out, *p.val);
+        return os;
+    }
+
+   private:
+    const T* const val;
+    Out out;
+};
 
 constexpr double E = 2.718'281'828'459'045'235'40;
 constexpr double E_GAMMA = 0.577'215'664'901'532'860'60;

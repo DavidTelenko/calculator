@@ -59,9 +59,8 @@ template <class F, class Fn, std::size_t... I>
 auto _eval_fn(Fn fn, auto name, std::vector<F>& stack,
               std::index_sequence<I...>) -> std::optional<F> {
     ASSERT(stack.size() >= sizeof...(I),
-           "Not enough arguments to `" << name << "` function");
+           "Invalid call to `" << name << "` function");
     const auto result = fn(stack[stack.size() - 1 - I]...);
-    ((std::cout << stack[stack.size() - 1 - I] << " "), ...) << std::endl;
     for (size_t i = 0; i < sizeof...(I); ++i) {
         stack.pop_back();
     }
@@ -265,19 +264,23 @@ constexpr auto perform(const Token<It>& identifier, std::vector<F>& stack,
 
     if (identifier.type == Token<It>::Assign) {
         ASSERT(not variables_stack.empty(), "Invalid assignment target");
+        ASSERT(not stack.empty(), "Empty assignment value");
+
         vars.set(variables_stack.back(), stack.back());
         variables_stack.pop_back();
+
         return true;
     }
 
     if (not try_eval_fn<It>(identifier.type, identifier_name, stack,
                             [&variables_stack, &identifier_name]() {
-                                std::cout
-                                    << "Unknown identifier: " << identifier_name
-                                    << '\n';
                                 variables_stack.push_back(identifier_name);
                                 return std::make_optional(0);
                             })) {
+        ASSERT(variables_stack.empty(),
+               "Undefinded variables " << calc::print_proxy(
+                   [](auto&& v) { std::cout << '`' << v << "` "; },
+                   variables_stack));
         return std::nullopt;
     }
 
@@ -298,7 +301,7 @@ constexpr auto evaluate(It begin, It end,
         return std::nullopt;
     }
 
-    calc::print([](auto&& v) { std::cout << v; }, *queue)('\n');
+    // calc::print([](auto&& v) { std::cout << v << " "; }, *queue);
 
     std::vector<F> stack;
     detail::variables_stack<It> runtime_variables;
@@ -309,7 +312,10 @@ constexpr auto evaluate(It begin, It end,
         }
     }
 
-    calc::print([](auto&& v) { std::cout << v; }, stack)('\n');
+    ASSERT(runtime_variables.empty(),
+           "Undefinded variables " << calc::print_proxy(
+               [](auto&& v) { std::cout << '`' << v << "` "; },
+               runtime_variables));
 
     ASSERT(stack.size() == 1, "Reduntant values");
 

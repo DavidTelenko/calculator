@@ -4,6 +4,7 @@
 #include <string_view>
 
 #include "evaluator.hpp"
+#include "prelude.hpp"
 #include "variables.hpp"
 
 template <class F>
@@ -45,6 +46,7 @@ auto repl() -> int {
         }
 
         if (buffer == "exit" or buffer == "q" or buffer == "quit") {
+            std::cout << variables;
             return 0;
         }
 
@@ -55,7 +57,7 @@ auto repl() -> int {
             continue;
         }
 
-        std::cout << "= " << get_styled(*result) << "\n\n";
+        std::cout << "= [33m" << get_styled(*result) << "[0m\n\n";
     }
 
     return 1;

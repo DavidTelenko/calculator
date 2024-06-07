@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <iterator>
 #include <string_view>
 #include <unordered_map>
@@ -10,7 +11,9 @@ namespace calc {
 
 template <class F, class It>
 class Variables {
-    using str_view = std::basic_string_view<std::iter_value_t<It>>;
+    using value_type = std::iter_value_t<It>;
+    using str = std::basic_string<value_type>;
+    using str_view = std::basic_string_view<value_type>;
 
    public:
     auto get(str_view name) -> std::optional<F> const {
@@ -37,21 +40,29 @@ class Variables {
         } else if (name == "inv_two_pi") {
             return calc::INV_TWO_PI;
         } else {
-            const auto result = _registry.find(name);
+            const auto result = _registry.find(str(name));
             if (result != _registry.end()) {
                 return result->second;
             }
-            return std::nullopt;
         }
+        return std::nullopt;
     }
 
     auto set(str_view name, F value) -> Variables& {
-        _registry[name] = value;
+        _registry[str(name)] = value;
         return *this;
     }
 
+    friend auto& operator<<(std::basic_ostream<std::iter_value_t<It>>& os,
+                            const Variables& vars) {
+        calc::print(
+            [&os](auto&& e) { os << e.first << " = " << e.second << '\n'; },
+            vars._registry);
+        return os;
+    }
+
    private:
-    std::unordered_map<str_view, F> _registry;
+    std::unordered_map<str, F> _registry;
 };
 
 }  // namespace calc
