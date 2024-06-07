@@ -29,6 +29,15 @@ using str_view = typename std::basic_string_view<std::iter_value_t<It>>;
 template <class It>
 using variables_stack = std::vector<str_view<It>>;
 
+constexpr auto delimited() {
+    return [](auto&& v) { std::cout << '`' << v << "` "; };
+}
+
+template <class T>
+constexpr auto make_delimited_print(const T& val) {
+    return calc::print_proxy(delimited(), val);
+}
+
 template <class F, class It>
 auto parse_num(const Token<It>& token) -> F {
     if (*token.lexeme_start == '0') {
@@ -60,7 +69,7 @@ auto _eval_fn(Fn fn, auto name, std::vector<F>& stack,
               std::index_sequence<I...>) -> std::optional<F> {
     ASSERT(stack.size() >= sizeof...(I),
            "Invalid call to `" << name << "` function");
-    const auto result = fn(stack[stack.size() - 1 - I]...);
+    const auto result = fn(stack[stack.size() - sizeof...(I) + I]...);
     for (size_t i = 0; i < sizeof...(I); ++i) {
         stack.pop_back();
     }
@@ -173,7 +182,7 @@ auto try_eval_binary_fn(typename Token<It>::Type type, str_view<It> name,
                               stack);
         case Token<It>::Equals:
             return eval_fn<2>(
-                [](auto a, auto b) { return std::abs(b - a) <= 1e-40; }, name,
+                [](auto a, auto b) { return std::abs(a - b) <= 1e-40; }, name,
                 stack);
         default:
             break;
@@ -190,31 +199,31 @@ auto try_eval_binary_fn(typename Token<It>::Type type, str_view<It> name,
     } else if (name == "gcd") {
         return eval_fn<2>(
             [](auto a, auto b) {
-                return std::gcd(static_cast<int>(b), static_cast<int>(a));
+                return std::gcd(static_cast<int>(a), static_cast<int>(b));
             },
             name, stack);
     } else if (name == "lcm") {
         return eval_fn<2>(
             [](auto a, auto b) {
-                return std::lcm(static_cast<int>(b), static_cast<int>(a));
+                return std::lcm(static_cast<int>(a), static_cast<int>(b));
             },
             name, stack);
     } else if (name == "or") {
         return eval_fn<2>(
             [](auto a, auto b) {
-                return static_cast<int>(b) or static_cast<int>(a);
+                return static_cast<int>(a) or static_cast<int>(b);
             },
             name, stack);
     } else if (name == "and") {
         return eval_fn<2>(
             [](auto a, auto b) {
-                return static_cast<int>(b) and static_cast<int>(a);
+                return static_cast<int>(a) and static_cast<int>(b);
             },
             name, stack);
     } else if (name == "xor") {
         return eval_fn<2>(
             [](auto a, auto b) {
-                return static_cast<int>(b) xor static_cast<int>(a);
+                return static_cast<int>(a) xor static_cast<int>(b);
             },
             name, stack);
     } else if (name == "add") {
@@ -277,10 +286,6 @@ constexpr auto perform(const Token<It>& identifier, std::vector<F>& stack,
                                 variables_stack.push_back(identifier_name);
                                 return std::make_optional(0);
                             })) {
-        ASSERT(variables_stack.empty(),
-               "Undefinded variables " << calc::print_proxy(
-                   [](auto&& v) { std::cout << '`' << v << "` "; },
-                   variables_stack));
         return std::nullopt;
     }
 
@@ -308,15 +313,13 @@ constexpr auto evaluate(It begin, It end,
 
     for (auto&& token : *queue) {
         if (not perform<F, It>(token, stack, runtime_variables, variables)) {
-            return std::nullopt;
+            break;
         }
     }
 
     ASSERT(runtime_variables.empty(),
-           "Undefinded variables " << calc::print_proxy(
-               [](auto&& v) { std::cout << '`' << v << "` "; },
-               runtime_variables));
-
+           "Undefinded variables " << make_delimited_print(runtime_variables));
+    ASSERT(not stack.empty(), "Empty statement");
     ASSERT(stack.size() == 1, "Reduntant values");
 
     return stack.back();
