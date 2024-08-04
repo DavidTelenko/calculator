@@ -1,34 +1,33 @@
 #pragma once
 
 namespace calc {
+enum class TokenType {
+    Number,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Pow,
+    LessThan,
+    LessEquals,
+    GreaterThan,
+    GreaterEquals,
+    Assign,
+    Equals,
+    Comma,
+    OpenParen,
+    CloseParen,
+    Identifier,
+    EndOfFile,
+    Error,
+};
 
 template <class It>
 struct Token {
-    enum class Type {
-        Number,
-        Add,
-        Sub,
-        Mul,
-        Div,
-        Mod,
-        Pow,
-        LessThan,
-        LessEquals,
-        GreaterThan,
-        GreaterEquals,
-        Assign,
-        Equals,
-        Comma,
-        OpenParen,
-        CloseParen,
-        Identifier,
-        EndOfFile,
-        Error,
-    };
+    using enum TokenType;
 
-    using enum Type;
-
-    constexpr explicit Token(Type type, It lexeme_start, It lexeme_end)
+    constexpr explicit Token(TokenType type, It lexeme_start, It lexeme_end)
         : type(type), lexeme_start(lexeme_start), lexeme_end(lexeme_end) {}
 
     template <class Out>
@@ -40,7 +39,7 @@ struct Token {
         return out;
     }
 
-    Type type;
+    TokenType type;
     It lexeme_start, lexeme_end;
 };
 

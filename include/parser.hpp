@@ -159,7 +159,7 @@ constexpr auto parse(It begin, It end)
         if (not parsed) {
             return std::nullopt;
         }
-        if (not *parsed) {
+        if (not*parsed) {
             break;
         }
     }

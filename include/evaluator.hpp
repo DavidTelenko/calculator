@@ -281,15 +281,15 @@ constexpr auto perform(const Token<It>& identifier, std::vector<F>& stack,
         return true;
     }
 
-    if (not try_eval_fn<It>(identifier.type, identifier_name, stack,
-                            [&variables_stack, &identifier_name]() {
-                                variables_stack.push_back(identifier_name);
-                                return std::make_optional(0);
-                            })) {
-        return std::nullopt;
-    }
+    const auto not_found = [&variables_stack, &identifier_name]() {
+        variables_stack.push_back(identifier_name);
+        return std::make_optional(0);
+    };
 
-    return true;
+    const auto eval_result =
+        try_eval_fn<It>(identifier.type, identifier_name, stack, not_found);
+
+    return eval_result ? true : std::nullopt;
 }
 
 }  // namespace detail
